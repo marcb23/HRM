@@ -1,7 +1,7 @@
-function [deriv,status] = calcDeriv(deriv,bpm,pos,current_time,status)
+function [deriv] = calcDeriv(bpm,time)
 
 %find the derivative of the heartrate as calculated in a parent script
 
-deriv = gradient(bpm);
+deriv = gradient(bpm,time);
 
 end
