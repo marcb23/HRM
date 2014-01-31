@@ -19,6 +19,7 @@ range = 1000;
 
 % For calculating BPM
 bpm = 0;
+buffer_pulses = 0;
 bpm_str = '';
 status = '';
 time_stamps = 0;
@@ -66,6 +67,7 @@ start_time = clock;
 while (1);
     % run until the figure gets closed
     if(~ishandle(fig))
+        disp('figure closed, breaking out of loop');
         break
     end
     % scale up the signal if its too quiet
@@ -83,23 +85,12 @@ while (1);
     data(pos) = data_in * default_scale;
     time(pos) = current_time;
     
-    % put the beat finding code in a function, add a way to assume beats
-    % where the program sees a large gap
+    % if a possible beat is detected run beatFinder
     if(data(pos) > threshold)
         beats(pos) = 900;
         
-        % only accept a new beat if it's close enough to the established
-        % bpm
-        if(pos > 1 && bpm(pos-1) > 0)
-            validate = (60/bpm(pos-1))/2; 
-        end
-        % detect whether this pulse is a new heartbeat
-        if(pos > 1 && beats(pos-1) == 0 && (bpm(pos-1) == 0 ||...
-                current_time-time_stamps(stamps_head) > validate))
-            stamps_head = stamps_head+1;
-            time_stamps(stamps_head) = current_time;
-            buffer_pulses = buffer_pulses + 1;
-        end
+        [beats,time_stamps,stamps_head,buffer_pulses] = beatFinder(beats,pos,...
+        bpm,time_stamps,stamps_head,current_time,buffer_pulses);
     else
         beats(pos) = 0;
     end
@@ -148,9 +139,6 @@ while (1);
     if(current_time > second_counter)
         output(second_counter,1) = current_time;
         output(second_counter,2) = round(bpm(pos));
-%         timestamp = int2str(current_time);
-%         filename = strcat('time_',timestamp,'.dat');
-%         csvwrite(filename,output);
         second_counter = second_counter+1;
     end
     
