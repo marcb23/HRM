@@ -22,7 +22,8 @@ function [bpm,bpm_str,buffer_pulses,stamps_tail] = calcBpm(stamps_head,...
         bpm_str = int2str(bpm(pos));
         if(bpm(pos) > 250 || bpm(pos) < 50)
 %             disp('bpm_str reset at bottom');
-            bpm(pos) = 0;
+%             bpm(pos) = 0;
+            bpm(pos) = bpm(pos-1);
             bpm_str = '...';
         end
     elseif pos > 1

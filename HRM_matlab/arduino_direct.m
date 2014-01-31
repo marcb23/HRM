@@ -3,6 +3,9 @@ close all;
 a=arduino('COM12');
 
 % basic data plotting variables
+range = 1000;
+default_scale = 1;
+scale_factor = default_scale;
 pos = 1;
 scroll_width = 20;
 delay = .1;
@@ -12,6 +15,7 @@ data = 0;%zeros(1,num_samples);
 deriv = 0;
 local_min = 0;
 local_max = 1000;
+range = 1000;
 
 % For calculating BPM
 bpm = 0;
@@ -23,6 +27,10 @@ stamps_tail = 1;
 buffer_pulses = 0;
 threshold = 400;
 beats = 0;
+validate = 0;
+
+% for saving values with timestamps
+second_counter = 1;
 
 %  set up the figure
 fig = figure(1);
@@ -54,17 +62,29 @@ axis([0 scroll_width -5 5]);
 grid on;
 
 tic
+start_time = clock;
 while (1);
-    
+    % run until the figure gets closed
+    if(~ishandle(fig))
+        break
+    end
+    % scale up the signal if its too quiet
+    % before making this work add a DC adjustment to take care of noise
+%     if(range < 200 && threshold < 600)
+%         disp('scaling up, range='); disp(range);
+%         scale_factor = scale_factor+.1;
+%     elseif(range > 500)
+%             scale_factor = default_scale;
+%     end
     data_in = a.analogRead(2);
     current_time = toc;
     
     %amplify the signal from Arduino
-    %%%%%%%%%%%%%%%%%%%%%% add something here to change the factor
-    %%%%%%%%%%%%%%%%%%%%%% depending on the calculated threshold
-    data(pos) = data_in * 2;
+    data(pos) = data_in * default_scale;
     time(pos) = current_time;
     
+    % put the beat finding code in a function, add a way to assume beats
+    % where the program sees a large gap
     if(data(pos) > threshold)
         beats(pos) = 900;
         
@@ -85,13 +105,7 @@ while (1);
     end
     
     % scale the axis to the incoming data
-    [local_min, local_max] = scaleAxis(pos,data,time);
-    threshold = local_max - (local_max-local_min)/2;
-  
-    % run until the figure gets closed
-    if(~ishandle(fig))
-        break
-    end
+    [local_min, local_max, threshold, range] = scaleAxis(pos,data,time);
     
     % update the raw data subplot
     subplot(3,1,1,'align');
@@ -130,6 +144,22 @@ while (1);
 
     drawnow;
     
+    % output the bpm with a timestamp
+    if(current_time > second_counter)
+        output(second_counter,1) = current_time;
+        output(second_counter,2) = round(bpm(pos));
+%         timestamp = int2str(current_time);
+%         filename = strcat('time_',timestamp,'.dat');
+%         csvwrite(filename,output);
+        second_counter = second_counter+1;
+    end
+    
     pos = pos + 1;
     pause(delay);
 end
+
+% save output to file
+start_time = datestr(start_time,'HHMMSS');
+filename = strcat('a_out_',start_time,'.csv');
+csvwrite(filename,output);
+% type('output.txt');

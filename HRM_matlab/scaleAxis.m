@@ -1,4 +1,4 @@
-function [local_min, local_max] = scaleAxis(pos, data, time)
+function [local_min, local_max, threshold, range] = scaleAxis(pos, data, time)
 
 % find the local min and local max of the last buffer_time seconds of the
 % graph, which will be used to resize the axes appropriately
@@ -21,11 +21,13 @@ for i=start:finish
     end
 end
 
-local_min = local_min-50;
+local_min = local_min-10;
 if(local_min < 0)
     local_min = 0;
 end
-local_max = local_max+50;
+local_max = local_max+10;
 if(local_max > 1000)
     local_max = 1000;
 end
+threshold = local_max - (local_max-local_min)/2;
+range = local_max-local_min;
