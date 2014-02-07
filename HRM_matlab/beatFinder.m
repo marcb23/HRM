@@ -1,16 +1,14 @@
 function [beats,time_stamps,stamps_head,buffer_pulses] = beatFinder(...
     beats,pos,bpm,time_stamps,stamps_head,current_time,buffer_pulses)
+
     % allow the heartbeat to vary by (at most) this amount each time a beat
     % is found
     variation = 1.75;
     diff = 0;
     
-    % stop matlab from complaining
-    buffer_pulses = buffer_pulses;
-        
     % only accept a new beat if it's close enough to the established
-    % bpm. EX. when you divide by 1.5 this beat could have come in at
-    % <= 1.5 the rate of the previously established heart rate
+    % bpm. EX. when you divide by 1.75 this beat could have come in at
+    % <= 1.75 times the rate of the previously established heart rate
     if(pos > 1 && bpm(pos-1) > 0)
         validate_lower = (60/bpm(pos-1))/variation;
         validate_upper1 = (60/bpm(pos-1))*variation;
@@ -50,10 +48,13 @@ function [beats,time_stamps,stamps_head,buffer_pulses] = beatFinder(...
             disp(msg);
             buffer_pulses = buffer_pulses+2;
         end
+        % add a time stamp for the current beat
         stamps_head = stamps_head+1;
         time_stamps(stamps_head) = current_time;
         buffer_pulses = buffer_pulses+1;
     else
+        % go here if the most recent beat came in too quickly to be
+        % realistic
         if(pos > 1 && beats(pos-1) == 0)
             msg = strcat('ignoring beat at t=',int2str(10*current_time));
             disp(msg);

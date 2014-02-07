@@ -26,9 +26,9 @@ function [bpm,bpm_str,buffer_pulses,stamps_tail] = calcBpm(stamps_head,...
         % alternatively, use the calculated bpm to either increase or
         % decrease the bpm by one
         calc_bpm = 60*((buffer_pulses-1)/diff);
+        
+        % throw out the calculated bpm if its too ridiculous
         if(calc_bpm > 250 || calc_bpm < 45)
-%             disp('bpm_str reset at bottom');
-%             bpm(pos) = 0;
             bpm_str = '...';
             if(pos > 1)
                 bpm(pos) = bpm(pos-1);

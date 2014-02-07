@@ -1,36 +1,35 @@
+% clear all variables and open figures, create an arduino object
 clear all;
 close all;
 a=arduino('COM12');
 
 % basic data plotting variables
-range = 1000;
-default_scale = 1;
+range = 1000;   % initial range of the y-axis
+default_scale = 1;  % used to scale up or down the analogRead
 scale_factor = default_scale;
-pos = 1;
-scroll_width = 20;
-delay = .1;
-sample_time = 25;
-time = 0;%zeros(1,num_samples);
-data = 0;%zeros(1,num_samples);
-deriv = 0;
-local_min = 0;
-local_max = 1000;
-range = 1000;
+pos = 1;            % index for the data, beats, time, bpm, and deriv arrays
+scroll_width = 20;  % width of the graph window
+delay = .1;         % delay between each sample from the arduino
+time = 0;           % array for storing raw data and sample times
+data = 0;
+deriv = 0;          % array to store the rate of change of heart rate
 
-% For calculating BPM
-bpm = 0;
-buffer_pulses = 0;
-bpm_str = '';
-status = '';
-time_stamps = 0;
-stamps_head = 0;
-stamps_tail = 1;
-buffer_pulses = 0;
-threshold = 400;
-beats = 0;
-validate = 0;
+local_min = 0;      % these will be scaled up and down in scaleAxis to 
+local_max = 1000;   % match the range of values from arduino
 
-% for saving values with timestamps
+% For calculating BPM, mostly used in calcBpm
+bpm = 0;            % array of heart rate calculations
+buffer_pulses = 0;  % this will be used in calcBpm to average out a heart rate
+bpm_str = '';       % current bpm stored as string
+status = '';        % not used yet
+time_stamps = 0;    % array of time stamps for all registered heart beats
+stamps_head = 0;    % position of the most recent relevant beat
+stamps_tail = 1;    % position of the least recent relevant beat
+threshold = 400;    % threshold for registering a heart beat, gets adjusted
+                    % based on local_max and local_min
+beats = 0;          % used to plot the beats, contains all 900s and 0s
+
+% used to save a heart rate value for the csv file every second
 second_counter = 1;
 
 %  set up the figure
@@ -62,6 +61,11 @@ ylabel('Rate of change','FontSize',10);
 axis([0 scroll_width -5 5]);
 grid on;
 
+% open up osc communnications with the game
+u = udp('127.0.0.1',9000);
+fopen(u);
+
+% start a timer at 0 and record the time at which the timer starts
 tic
 start_time = clock;
 while (1);
@@ -78,14 +82,18 @@ while (1);
 %     elseif(range > 500)
 %             scale_factor = default_scale;
 %     end
+
+% read in data from arduino and store the current time
     data_in = a.analogRead(2);
     current_time = toc;
     
-    %amplify the signal from Arduino
+    % stop sampling if arduino stops sending data
     if(isempty(data_in))
         break
     end
-    data(pos) = data_in * default_scale;
+    
+    % if there is a defined scale factor, use it to scale input up or down
+    data(pos) = data_in * scale_factor;
     time(pos) = current_time;
     
     % if a possible beat is detected run beatFinder
@@ -98,7 +106,8 @@ while (1);
         beats(pos) = 0;
     end
     
-    % scale the axis to the incoming data
+    % scale the axis to the incoming data. Also sets threshold based on the
+    % range of recent arduino readings
     [local_min, local_max, threshold, range] = scaleAxis(pos,data,time);
     
     % update the raw data subplot
@@ -106,6 +115,8 @@ while (1);
     hold on;
     set(plot_raw,'xdata',time,'ydata',data);
     set(plot_beats, 'xdata', time, 'ydata', beats);
+    
+    % if necessary, scroll the graph window
     if(time(pos)-scroll_width > 0)
         axis([time(pos)-scroll_width time(pos) local_min local_max]);
     else
@@ -117,6 +128,9 @@ while (1);
                     stamps_tail, time_stamps, buffer_pulses, bpm, pos);
     set(title_all, 'String', bpm_str);
     
+    % send data to the game over osc
+    oscsend(u,'/HXM','iiiis',0,bpm(pos),0,0,'black');
+    
     % plot the beats per minute over time
     subplot(3,1,2,'align');
     set(plot_rate, 'xdata', time, 'ydata', bpm);
@@ -127,6 +141,7 @@ while (1);
     % do things to calculate the rate of change of heartrate
     % eventually something in this section should determine the status
     % (green, yellow, red) from available data
+    % plot the rate of change of the heart rate
     [deriv] = calcDeriv(bpm,time);
     subplot(3,1,3,'align');
     hold on;
@@ -138,19 +153,22 @@ while (1);
 
     drawnow;
     
-    % output the bpm with a timestamp
+    % save the bpm with a timestamp to eventually be exported to a csv
     if(current_time > second_counter)
         output(second_counter,1) = current_time;
         output(second_counter,2) = round(bpm(pos));
         second_counter = second_counter+1;
     end
     
+    % increment position in the arrays every time
     pos = pos + 1;
     pause(delay);
 end
+
+%close osc communications
+fclose(u);
 
 % save output to file
 start_time = datestr(start_time,'HHMMSS');
 filename = strcat('a_out_',start_time,'.csv');
 csvwrite(filename,output);
-% type('output.txt');

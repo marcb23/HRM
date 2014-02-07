@@ -1,0 +1,410 @@
+
+<!DOCTYPE html
+  PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html><head>
+      <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+   <!--
+This HTML was auto-generated from MATLAB code.
+To make changes, update the MATLAB code and republish this document.
+      --><title>arduino_direct</title><meta name="generator" content="MATLAB 7.11"><link rel="schema.DC" href="http://purl.org/dc/elements/1.1/"><meta name="DC.date" content="2014-02-07"><meta name="DC.source" content="arduino_direct.m"><style type="text/css">
+
+body {
+  background-color: white;
+  margin:10px;
+}
+
+h1 {
+  color: #990000; 
+  font-size: x-large;
+}
+
+h2 {
+  color: #990000;
+  font-size: medium;
+}
+
+/* Make the text shrink to fit narrow windows, but not stretch too far in 
+wide windows. */ 
+p,h1,h2,div.content div {
+  max-width: 600px;
+  /* Hack for IE6 */
+  width: auto !important; width: 600px;
+}
+
+pre.codeinput {
+  background: #EEEEEE;
+  padding: 10px;
+}
+@media print {
+  pre.codeinput {word-wrap:break-word; width:100%;}
+} 
+
+span.keyword {color: #0000FF}
+span.comment {color: #228B22}
+span.string {color: #A020F0}
+span.untermstring {color: #B20000}
+span.syscmd {color: #B28C00}
+
+pre.codeoutput {
+  color: #666666;
+  padding: 10px;
+}
+
+pre.error {
+  color: red;
+}
+
+p.footer {
+  text-align: right;
+  font-size: xx-small;
+  font-weight: lighter;
+  font-style: italic;
+  color: gray;
+}
+
+  </style></head><body><div class="content"><pre class="codeinput"><span class="comment">% clear all variables and open figures, create an arduino object</span>
+clear <span class="string">all</span>;
+close <span class="string">all</span>;
+a=arduino(<span class="string">'COM12'</span>);
+
+<span class="comment">% basic data plotting variables</span>
+range = 1000;   <span class="comment">% initial range of the y-axis</span>
+default_scale = 1;  <span class="comment">% used to scale up or down the analogRead</span>
+scale_factor = default_scale;
+pos = 1;            <span class="comment">% index for the data, beats, time, bpm, and deriv arrays</span>
+scroll_width = 20;  <span class="comment">% width of the graph window</span>
+delay = .1;         <span class="comment">% delay between each sample from the arduino</span>
+time = 0;           <span class="comment">% array for storing raw data and sample times</span>
+data = 0;
+deriv = 0;          <span class="comment">% array to store the rate of change of heart rate</span>
+
+local_min = 0;      <span class="comment">% these will be scaled up and down in scaleAxis to</span>
+local_max = 1000;   <span class="comment">% match the range of values from arduino</span>
+
+<span class="comment">% For calculating BPM, mostly used in calcBpm</span>
+bpm = 0;            <span class="comment">% array of heart rate calculations</span>
+buffer_pulses = 0;  <span class="comment">% this will be used in calcBpm to average out a heart rate</span>
+bpm_str = <span class="string">''</span>;       <span class="comment">% current bpm stored as string</span>
+status = <span class="string">''</span>;        <span class="comment">% not used yet</span>
+time_stamps = 0;    <span class="comment">% array of time stamps for all registered heart beats</span>
+stamps_head = 0;    <span class="comment">% position of the most recent relevant beat</span>
+stamps_tail = 1;    <span class="comment">% position of the least recent relevant beat</span>
+threshold = 400;    <span class="comment">% threshold for registering a heart beat, gets adjusted</span>
+                    <span class="comment">% based on local_max and local_min</span>
+beats = 0;
+validate = 0;
+
+<span class="comment">% for saving values with timestamps</span>
+second_counter = 1;
+
+<span class="comment">%  set up the figure</span>
+fig = figure(1);
+subplot(3,1,1);
+hold <span class="string">on</span>;
+plot_raw = plot(time,data,<span class="string">'r'</span>,<span class="string">'LineWidth'</span>,2);
+title_all = title(<span class="string">'HRM Output'</span>,<span class="string">'FontSize'</span>,15);
+hold <span class="string">on</span>;
+plot_beats = plot(time,beats,<span class="string">'LineWidth'</span>,1 );
+ylabel(<span class="string">'Arduino'</span>,<span class="string">'FontSize'</span>,10);
+axis([0 scroll_width 0 1000]);
+grid <span class="string">on</span>;
+
+<span class="comment">% plot the calculated heartrate</span>
+subplot(3,1,2);
+plot_rate = plot(time,bpm,<span class="string">'g'</span>,<span class="string">'LineWidth'</span>,2);
+ylabel(<span class="string">'Beats Per Minute'</span>,<span class="string">'FontSIze'</span>,10);
+axis([0 scroll_width 50 150]);
+grid <span class="string">on</span>;
+
+
+<span class="comment">% plot the derivative of the heart rate</span>
+subplot(3,1,3);
+plot_deriv = plot(time,deriv,<span class="string">'b'</span>,<span class="string">'LineWidth'</span>,2);
+<span class="comment">% title('Status: Green','FontSize',15);</span>
+xlabel(<span class="string">'Time Elapsed'</span>,<span class="string">'FontSize'</span>,10);
+ylabel(<span class="string">'Rate of change'</span>,<span class="string">'FontSize'</span>,10);
+axis([0 scroll_width -5 5]);
+grid <span class="string">on</span>;
+
+<span class="comment">% open up osc communnications with the game</span>
+u = udp(<span class="string">'127.0.0.1'</span>,9000);
+fopen(u);
+
+tic
+start_time = clock;
+<span class="keyword">while</span> (1);
+    <span class="comment">% run until the figure gets closed</span>
+    <span class="keyword">if</span>(~ishandle(fig))
+        disp(<span class="string">'figure closed, breaking out of loop'</span>);
+        <span class="keyword">break</span>
+    <span class="keyword">end</span>
+    <span class="comment">% scale up the signal if its too quiet</span>
+    <span class="comment">% before making this work add a DC adjustment to take care of noise</span>
+<span class="comment">%     if(range &lt; 200 &amp;&amp; threshold &lt; 600)</span>
+<span class="comment">%         disp('scaling up, range='); disp(range);</span>
+<span class="comment">%         scale_factor = scale_factor+.1;</span>
+<span class="comment">%     elseif(range &gt; 500)</span>
+<span class="comment">%             scale_factor = default_scale;</span>
+<span class="comment">%     end</span>
+    data_in = a.analogRead(2);
+    current_time = toc;
+
+    <span class="comment">%amplify the signal from Arduino</span>
+    <span class="keyword">if</span>(isempty(data_in))
+        <span class="keyword">break</span>
+    <span class="keyword">end</span>
+    data(pos) = data_in * default_scale;
+    time(pos) = current_time;
+
+    <span class="comment">% if a possible beat is detected run beatFinder</span>
+    <span class="keyword">if</span>(data(pos) &gt; threshold)
+        beats(pos) = 900;
+
+        [beats,time_stamps,stamps_head,buffer_pulses] = beatFinder(beats,pos,<span class="keyword">...</span>
+        bpm,time_stamps,stamps_head,current_time,buffer_pulses);
+    <span class="keyword">else</span>
+        beats(pos) = 0;
+    <span class="keyword">end</span>
+
+    <span class="comment">% scale the axis to the incoming data</span>
+    [local_min, local_max, threshold, range] = scaleAxis(pos,data,time);
+
+    <span class="comment">% update the raw data subplot</span>
+    subplot(3,1,1,<span class="string">'align'</span>);
+    hold <span class="string">on</span>;
+    set(plot_raw,<span class="string">'xdata'</span>,time,<span class="string">'ydata'</span>,data);
+    set(plot_beats, <span class="string">'xdata'</span>, time, <span class="string">'ydata'</span>, beats);
+    <span class="keyword">if</span>(time(pos)-scroll_width &gt; 0)
+        axis([time(pos)-scroll_width time(pos) local_min local_max]);
+    <span class="keyword">else</span>
+        axis([0 scroll_width local_min local_max]);
+    <span class="keyword">end</span>
+
+    <span class="comment">% calculate the heartrate</span>
+    [bpm,bpm_str,buffer_pulses,stamps_tail] = calcBpm(stamps_head,<span class="keyword">...</span>
+                    stamps_tail, time_stamps, buffer_pulses, bpm, pos);
+    set(title_all, <span class="string">'String'</span>, bpm_str);
+
+    <span class="comment">% send data to the game over osc</span>
+    oscsend(u,<span class="string">'/HXM'</span>,<span class="string">'iiiis'</span>,0,bpm(pos),0,0,<span class="string">'black'</span>);
+
+    <span class="comment">% plot the beats per minute over time</span>
+    subplot(3,1,2,<span class="string">'align'</span>);
+    set(plot_rate, <span class="string">'xdata'</span>, time, <span class="string">'ydata'</span>, bpm);
+    <span class="keyword">if</span>(time(pos)-scroll_width &gt; 0)
+        axis([time(pos)-scroll_width time(pos) 50 150]);
+    <span class="keyword">end</span>
+
+    <span class="comment">% do things to calculate the rate of change of heartrate</span>
+    <span class="comment">% eventually something in this section should determine the status</span>
+    <span class="comment">% (green, yellow, red) from available data</span>
+    [deriv] = calcDeriv(bpm,time);
+    subplot(3,1,3,<span class="string">'align'</span>);
+    hold <span class="string">on</span>;
+    <span class="keyword">if</span>(time(pos)-scroll_width &gt; 0)
+        axis([time(pos)-scroll_width time(pos) -5 5]);
+    <span class="keyword">end</span>
+    set(plot_deriv,<span class="string">'XData'</span>,time,<span class="string">'YData'</span>,deriv);
+<span class="comment">%     set(title_deriv, 'String', status);</span>
+
+    drawnow;
+
+    <span class="comment">% output the bpm with a timestamp</span>
+    <span class="keyword">if</span>(current_time &gt; second_counter)
+        output(second_counter,1) = current_time;
+        output(second_counter,2) = round(bpm(pos));
+        second_counter = second_counter+1;
+    <span class="keyword">end</span>
+
+    pos = pos + 1;
+    pause(delay);
+<span class="keyword">end</span>
+
+<span class="comment">%close osc communications</span>
+fclose(u);
+
+<span class="comment">% save output to file</span>
+start_time = datestr(start_time,<span class="string">'HHMMSS'</span>);
+filename = strcat(<span class="string">'a_out_'</span>,start_time,<span class="string">'.csv'</span>);
+csvwrite(filename,output);
+<span class="comment">% type('output.txt');</span>
+</pre><pre class="codeoutput">An error occurred during writing.
+Proceeding to deletion anyway
+Port: COM12 is not available. Available ports: COM1, COM2, COM12.
+Use INSTRFIND to determine if other instrument objects are connected to the requested device.
+</pre><pre class="codeoutput">Error using ==&gt; arduino&gt;arduino.arduino at 83
+Could not open port: COM12
+
+Error in ==&gt; arduino_direct at 4
+a=arduino('COM12');
+</pre><p class="footer"><br>
+      Published with MATLAB&reg; 7.11<br></p></div><!--
+##### SOURCE BEGIN #####
+% clear all variables and open figures, create an arduino object
+clear all;
+close all;
+a=arduino('COM12');
+
+% basic data plotting variables
+range = 1000;   % initial range of the y-axis
+default_scale = 1;  % used to scale up or down the analogRead
+scale_factor = default_scale;
+pos = 1;            % index for the data, beats, time, bpm, and deriv arrays
+scroll_width = 20;  % width of the graph window
+delay = .1;         % delay between each sample from the arduino
+time = 0;           % array for storing raw data and sample times
+data = 0;
+deriv = 0;          % array to store the rate of change of heart rate
+
+local_min = 0;      % these will be scaled up and down in scaleAxis to 
+local_max = 1000;   % match the range of values from arduino
+
+% For calculating BPM, mostly used in calcBpm
+bpm = 0;            % array of heart rate calculations
+buffer_pulses = 0;  % this will be used in calcBpm to average out a heart rate
+bpm_str = '';       % current bpm stored as string
+status = '';        % not used yet
+time_stamps = 0;    % array of time stamps for all registered heart beats
+stamps_head = 0;    % position of the most recent relevant beat
+stamps_tail = 1;    % position of the least recent relevant beat
+threshold = 400;    % threshold for registering a heart beat, gets adjusted
+                    % based on local_max and local_min
+beats = 0;          
+validate = 0;
+
+% for saving values with timestamps
+second_counter = 1;
+
+%  set up the figure
+fig = figure(1);
+subplot(3,1,1);
+hold on;
+plot_raw = plot(time,data,'r','LineWidth',2);
+title_all = title('HRM Output','FontSize',15);
+hold on;
+plot_beats = plot(time,beats,'LineWidth',1 );
+ylabel('Arduino','FontSize',10);
+axis([0 scroll_width 0 1000]);
+grid on;
+
+% plot the calculated heartrate
+subplot(3,1,2);
+plot_rate = plot(time,bpm,'g','LineWidth',2);
+ylabel('Beats Per Minute','FontSIze',10);
+axis([0 scroll_width 50 150]);
+grid on;
+
+
+% plot the derivative of the heart rate
+subplot(3,1,3);
+plot_deriv = plot(time,deriv,'b','LineWidth',2);
+% title('Status: Green','FontSize',15);
+xlabel('Time Elapsed','FontSize',10);
+ylabel('Rate of change','FontSize',10);
+axis([0 scroll_width -5 5]);
+grid on;
+
+% open up osc communnications with the game
+u = udp('127.0.0.1',9000);
+fopen(u);
+
+tic
+start_time = clock;
+while (1);
+    % run until the figure gets closed
+    if(~ishandle(fig))
+        disp('figure closed, breaking out of loop');
+        break
+    end
+    % scale up the signal if its too quiet
+    % before making this work add a DC adjustment to take care of noise
+%     if(range < 200 && threshold < 600)
+%         disp('scaling up, range='); disp(range);
+%         scale_factor = scale_factor+.1;
+%     elseif(range > 500)
+%             scale_factor = default_scale;
+%     end
+    data_in = a.analogRead(2);
+    current_time = toc;
+    
+    %amplify the signal from Arduino
+    if(isempty(data_in))
+        break
+    end
+    data(pos) = data_in * default_scale;
+    time(pos) = current_time;
+    
+    % if a possible beat is detected run beatFinder
+    if(data(pos) > threshold)
+        beats(pos) = 900;
+        
+        [beats,time_stamps,stamps_head,buffer_pulses] = beatFinder(beats,pos,...
+        bpm,time_stamps,stamps_head,current_time,buffer_pulses);
+    else
+        beats(pos) = 0;
+    end
+    
+    % scale the axis to the incoming data
+    [local_min, local_max, threshold, range] = scaleAxis(pos,data,time);
+    
+    % update the raw data subplot
+    subplot(3,1,1,'align');
+    hold on;
+    set(plot_raw,'xdata',time,'ydata',data);
+    set(plot_beats, 'xdata', time, 'ydata', beats);
+    if(time(pos)-scroll_width > 0)
+        axis([time(pos)-scroll_width time(pos) local_min local_max]);
+    else
+        axis([0 scroll_width local_min local_max]);
+    end
+
+    % calculate the heartrate
+    [bpm,bpm_str,buffer_pulses,stamps_tail] = calcBpm(stamps_head,...
+                    stamps_tail, time_stamps, buffer_pulses, bpm, pos);
+    set(title_all, 'String', bpm_str);
+    
+    % send data to the game over osc
+    oscsend(u,'/HXM','iiiis',0,bpm(pos),0,0,'black');
+    
+    % plot the beats per minute over time
+    subplot(3,1,2,'align');
+    set(plot_rate, 'xdata', time, 'ydata', bpm);
+    if(time(pos)-scroll_width > 0)
+        axis([time(pos)-scroll_width time(pos) 50 150]);
+    end
+    
+    % do things to calculate the rate of change of heartrate
+    % eventually something in this section should determine the status
+    % (green, yellow, red) from available data
+    [deriv] = calcDeriv(bpm,time);
+    subplot(3,1,3,'align');
+    hold on;
+    if(time(pos)-scroll_width > 0)
+        axis([time(pos)-scroll_width time(pos) -5 5]);
+    end
+    set(plot_deriv,'XData',time,'YData',deriv);
+%     set(title_deriv, 'String', status);
+
+    drawnow;
+    
+    % output the bpm with a timestamp
+    if(current_time > second_counter)
+        output(second_counter,1) = current_time;
+        output(second_counter,2) = round(bpm(pos));
+        second_counter = second_counter+1;
+    end
+    
+    pos = pos + 1;
+    pause(delay);
+end
+
+%close osc communications
+fclose(u);
+
+% save output to file
+start_time = datestr(start_time,'HHMMSS');
+filename = strcat('a_out_',start_time,'.csv');
+csvwrite(filename,output);
+% type('output.txt');
+##### SOURCE END #####
+--></body></html>
