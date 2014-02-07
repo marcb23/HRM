@@ -82,6 +82,9 @@ while (1);
     current_time = toc;
     
     %amplify the signal from Arduino
+    if(isempty(data_in))
+        break
+    end
     data(pos) = data_in * default_scale;
     time(pos) = current_time;
     
@@ -111,7 +114,7 @@ while (1);
 
     % calculate the heartrate
     [bpm,bpm_str,buffer_pulses,stamps_tail] = calcBpm(stamps_head,...
-    stamps_tail, current_time, time_stamps, buffer_pulses, bpm, pos);
+                    stamps_tail, time_stamps, buffer_pulses, bpm, pos);
     set(title_all, 'String', bpm_str);
     
     % plot the beats per minute over time
