@@ -10,22 +10,44 @@ function [beats,time_stamps,stamps_head,buffer_pulses] = beatFinder(...
     % bpm. EX. when you divide by 1.75 this beat could have come in at
     % <= 1.75 times the rate of the previously established heart rate
     if(pos > 1 && bpm(pos-1) > 0)
-        validate_lower = 60/(bpm(pos-1)-10);%(60/bpm(pos-1))/variation;
-        validate_upper1 = 60/(bpm(pos-1)+10);%(60/bpm(pos-1))*variation;
-        validate_upper2 = 60/(bpm(pos-1)+20);%validate_upper1 + 60/bpm(pos-1);
+        validate_lower = (60/bpm(pos-1))/variation;
+        validate_upper1 = (60/bpm(pos-1))*variation;
+        validate_upper2 = validate_upper1 + 60/bpm(pos-1);
         upper_bound = validate_upper2 + 60/bpm(pos-1);
     end
+    
+    % alternatively calculate the acceptable variation by adding and
+    % subtracting a constant from the current bpm
+    variation_const = 20;
+    if(pos > 1 && bpm(pos-1) > 0)
+        upper_bound = bpm(pos-1) + variation_const;
+        missed_1 = bpm(pos-1)/variation;
+        missed_2 = bpm(pos-1)/2 - variation;
+        lower_bound = bpm(pos-1)/3;
+    end
+        
 
     % detect whether this pulse is a new heartbeat
+    inst_bpm = 0;
     if(stamps_head > 0)
         diff = current_time-time_stamps(stamps_head);
+        inst_bpm = 60/diff;
     end
     if(pos > 1 && beats(pos-1) == 0 && ((bpm(pos-1) == 0 ||...
-            diff > validate_lower)))
+            inst_bpm < upper_bound)))
+            %diff > validate_lower)))
         % detect whether the HRM missed a beat. If it did, add a beat
         % in between the last two
-        if(bpm(pos-1) > 0 && diff > validate_upper1 && ...
-            diff < validate_upper2)
+        
+        if(bpm(pos-1) > 0 && inst_bpm < missed_1 && ...%validate_upper1 && ...
+            inst_bpm > missed_2)
+            %diff < validate_upper2)
+            if(pos > 1)
+                msg = strcat('instantaneous: ',int2str(inst_bpm),', last: ',...
+                    int2str(bpm(pos-1)));
+                disp(msg);
+            end
+
             add_time = diff/2 + time_stamps(stamps_head);
             stamps_head = stamps_head+1;
             time_stamps(stamps_head) = add_time;
@@ -35,8 +57,9 @@ function [beats,time_stamps,stamps_head,buffer_pulses] = beatFinder(...
             buffer_pulses = buffer_pulses+1;
             
         % optional: add in 2 beats if it looks like 2 were missed
-        elseif(bpm(pos-1) > 0 && diff > validate_upper2 && ...
-            diff < upper_bound)
+        elseif(bpm(pos-1) > 0 && inst_bpm < missed_2...% diff > validate_upper2 && ...
+            && inst_bpm > lower_bound)
+            %diff < upper_bound)
             add_time1 = diff/3 + time_stamps(stamps_head);
             add_time2 = 2*diff/3 + time_stamps(stamps_head);
             stamps_head = stamps_head+1;
