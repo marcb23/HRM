@@ -5,7 +5,7 @@ function [bpm,bpm_str,buffer_pulses,stamps_tail] = calcBpm(stamps_head,...
 % If there is not enough new data keep the last calculated heart rate (or 0,
 % the sentinel). If the calculated heart rate is too extreme set it to the
 % last legitimate rate (or 0)
-    buffer = 12;
+    buffer = 10;
     if pos>1 && bpm(pos-1) > 0 
         bpm_str = int2str(bpm(pos-1));
     else

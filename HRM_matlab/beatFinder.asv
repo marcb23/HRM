@@ -3,16 +3,16 @@ function [beats,time_stamps,stamps_head,buffer_pulses] = beatFinder(...
 
     % allow the heartbeat to vary by (at most) this amount each time a beat
     % is found
-    variation = 1.75;
+    variation = 1.5;
     diff = 0;
     
     % only accept a new beat if it's close enough to the established
     % bpm. EX. when you divide by 1.75 this beat could have come in at
     % <= 1.75 times the rate of the previously established heart rate
     if(pos > 1 && bpm(pos-1) > 0)
-        validate_lower = (60/bpm(pos-1))/variation;
-        validate_upper1 = (60/bpm(pos-1))*variation;
-        validate_upper2 = validate_upper1 + 60/bpm(pos-1);
+        validate_lower = 60/(bpm(pos-1)-10);%(60/bpm(pos-1))/variation;
+        validate_upper1 = 60/(bpm(pos-1)+10);%(60/bpm(pos-1))*variation;
+        validate_upper2 = 60/(bpm(pos-1)+20);%validate_upper1 + 60/bpm(pos-1);
         upper_bound = validate_upper2 + 60/bpm(pos-1);
     end
 
@@ -48,6 +48,7 @@ function [beats,time_stamps,stamps_head,buffer_pulses] = beatFinder(...
             disp(msg);
             buffer_pulses = buffer_pulses+2;
         end
+        % add a time stamp for the current beat
         stamps_head = stamps_head+1;
         time_stamps(stamps_head) = current_time;
         buffer_pulses = buffer_pulses+1;
