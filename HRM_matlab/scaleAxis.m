@@ -21,11 +21,11 @@ for i=start:finish
     end
 end
 
-local_min = local_min-10;
+local_min = local_min-5;
 if(local_min < 0)
     local_min = 0;
 end
-local_max = local_max+10;
+local_max = local_max+5;
 if(local_max > 1000)
     local_max = 1000;
 end

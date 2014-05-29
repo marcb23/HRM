@@ -19,7 +19,7 @@ local_max = 1000;   % match the range of values from arduino
 
 % For calculating BPM, mostly used in calcBpm
 bpm = 0;            % array of heart rate calculations
-buffer_pulses = 0;  % this will be used in calcBpm to average out a heart rate
+be = 0;  % this will be used in calcBpm to average out a heart rate
 bpm_str = '';       % current bpm stored as string
 status = '';        % not used yet
 time_stamps = 0;    % array of time stamps for all registered heart beats
@@ -171,4 +171,4 @@ fclose(u);
 % save output to file
 start_time = datestr(start_time,'HHMMSS');
 filename = strcat('a_out_',start_time,'.csv');
-% csvwrite(filename,output);
+csvwrite(filename,output);

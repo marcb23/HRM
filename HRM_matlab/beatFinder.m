@@ -5,6 +5,7 @@ function [beats,time_stamps,stamps_head,buffer_pulses] = beatFinder(...
     % is found
     variation = 1.4;
     diff = 0;
+    upper_bound = 250;
     
     % only accept a new beat if it's close enough to the established
     % bpm. EX. when you divide by 1.75 this beat could have come in at
@@ -23,8 +24,8 @@ function [beats,time_stamps,stamps_head,buffer_pulses] = beatFinder(...
         diff = current_time-time_stamps(stamps_head);
         inst_bpm = 60/diff;
     end
-    if(pos > 1 && beats(pos-1) == 0 && ((bpm(pos-1) == 0 ||...
-            inst_bpm < upper_bound)))
+    if(pos > 1 && beats(pos-1) == 0 && (bpm(pos-1) == 0 ||...
+            inst_bpm < upper_bound))
         % detect whether the HRM missed a beat. If it did, add a beat
         % in between the last two
         

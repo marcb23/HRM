@@ -1,7 +1,7 @@
 % clear all variables and open figures, create an arduino object
 clear all;
 close all;
-a=arduino('COM12');
+a=arduino('COM11');
 
 % basic data plotting variables
 range = 1000;   % initial range of the y-axis

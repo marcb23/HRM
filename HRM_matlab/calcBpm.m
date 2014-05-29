@@ -40,6 +40,8 @@ function [bpm,bpm_str,buffer_pulses,stamps_tail] = calcBpm(stamps_head,...
                 bpm(pos) = bpm(pos-1)-1;
             elseif(calc_bpm > bpm(pos-1))
                 bpm(pos) = bpm(pos-1)+1;
+            else
+                bpm(pos) = bpm(pos-1);
             end
             bpm_str = int2str(bpm(pos));
         else
