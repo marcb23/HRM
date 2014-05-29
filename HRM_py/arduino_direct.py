@@ -53,8 +53,8 @@ def dataLoop(ser):
 
   	plot = HRMplot.HRMplot()
 
-	print 'plotting...'
-	start = time.clock()
+	start = time.time()
+	print 'start time: ' + str(start)
 	while True:
 		try:
 			ser.write("1")
@@ -62,14 +62,16 @@ def dataLoop(ser):
 			raw_in = ser.readline()
 			# print raw_in
 			# try:
-			data_pair = [time.clock(), float(raw_in)]
+			data_pair = [(time.time()-start), float(raw_in)]
 			# analogData.add(data)
 			# analogPlot.update(analogData)
 			# print "float works"
-			plot.add(data_pair)
+
+			plot.update(data_pair)
+
 			# except:
 			# 	print "rogue string: " + raw_in
-			time.sleep(.01)
+			time.sleep(.005)
 		except KeyboardInterrupt:
 			print 'exiting'
 			break

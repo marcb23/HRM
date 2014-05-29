@@ -32,7 +32,9 @@ class HRMplot:
 		plt.axis([0, self.scroll_width, self.local_min, self.local_max])
 		plt.grid(True)
 
-	def add(self, data_pair):
+	def update(self, data_pair):
+		bpm_str = ''
+
 		self.time.append(data_pair[0])
 		self.data.append(data_pair[1])
 		self.pos = len(self.time)-1 			# array index of last stored value
@@ -43,9 +45,8 @@ class HRMplot:
 			self.beatFinder(self.beats, self.pos, self.bpm, self.time_stamps, self.stamps_head, self.time[self.pos], self.buffer_pulses)
 		else:
 			self.beats.append(0)
-		self.calcBPM(self.pos, self.time_stamps, self.stamps_head, self.stamps_tail, self.buffer_pulses, self.bpm)
+		self.calcBPM(self.pos, self.time_stamps, self.stamps_head, self.stamps_tail, self.buffer_pulses, self.bpm, bpm_str)
 		plt.setp(self.plot_beats, 'xdata', self.time, 'ydata', self.beats)
-
 		plt.draw()
 
 	def setAxes(self):
@@ -69,6 +70,7 @@ class HRMplot:
 		self.local_min = max(self.local_min-5, 0)
 		self.local_max = min(self.local_max+5, 1000)
 		self.threshold = self.local_max - (self.local_max - self.local_min)/2
+		# print 'threshold = ' + str(self.threshold)
 
 		if(self.time[self.pos] > self.scroll_width):
 			plt.axis([self.time[self.pos] - self.scroll_width, self.time[self.pos], self.local_min, self.local_max])
@@ -109,14 +111,14 @@ class HRMplot:
 				print 'add 1, instantaneous: ' + str(inst_bpm) + ', last: ' + str(bpm[pos-1])
 				
 				time_stamps.append(diff/2 + time_stamps[stamps_head])
-				buffer_pulses +=1
+				buffer_pulses += 1
 
 			# detect if two were missed
 			elif(bpm[pos-1] > 0 and inst_bpm < missed_2 and inst_bpm > lower_bound):
 				print 'add 2, instantaneous: ' + str(inst_bpm) + ', last: ' + str(bpm[pos-1])
 				time_stamps.append(diff/3 + time_stamps[stamps_head])
 				time_stamps.append(2*diff/3 + time_stamps[stamps_head])
-				buffer_pulses = buffer_pulses+2
+				buffer_pulses += 2
 			time_stamps.append(current_time)
 			stamps_head = len(time_stamps) - 1
 			buffer_pulses += 1
@@ -129,7 +131,7 @@ class HRMplot:
 		self.stamps_head = stamps_head
 		self.buffer_pulses = buffer_pulses
 
-	def calcBPM(self, pos, time_stamps, stamps_head, stamps_tail, buffer_pulses, bpm):
+	def calcBPM(self, pos, time_stamps, stamps_head, stamps_tail, buffer_pulses, bpm, bpm_str=''):
 		# Calculate beats per minute from the last 'buffer' seconds of data. 
 		# If there is not enough new data keep the last calculated heart rate (or 0,
 		# the sentinel). If the calculated heart rate is too extreme set it to the
@@ -138,7 +140,6 @@ class HRMplot:
 		buffer_time = 10
 		lower_bound = 45
 		upper_bound = 250
-		bpm_str = ''
 
 		if (pos > 0 and bpm[pos-1] > 0):
 			bpm_str = str(bpm[pos-1])
@@ -147,8 +148,8 @@ class HRMplot:
 
 		if(stamps_head > 0 and time_stamps[stamps_head] - time_stamps[stamps_tail] > buffer_time):
 			while(time_stamps[stamps_head] - time_stamps[stamps_tail] > buffer_time):
-				buffer_pulses = buffer_pulses - 1
-				stamps_tail = stamps_tail + 1
+				buffer_pulses -= 1
+				stamps_tail += 1
 			diff = time_stamps[stamps_head] - time_stamps[stamps_tail]
 
 			calc_bpm = 60*((buffer_pulses-1)/diff)
@@ -156,27 +157,32 @@ class HRMplot:
 			if(calc_bpm > upper_bound or calc_bpm < lower_bound):
 				bpm_str = '...'
 				if(pos > 0):
-					bpm[pos] = bpm[pos-1];
+					bpm.append(bpm[pos-1])
 				else:
-					bpm[pos] = 0
+					bpm.append(0)
 			elif(pos > 0 and bpm[pos-1] > 0):
+				print 'calc_bpm: ' + str(calc_bpm) + ' and ' + str(bpm[pos-1])
 				if(calc_bpm < bpm[pos-1]):
-					bpm[pos] = bpm[pos-1]-1
-				elif(calc_bpm > bpm(pos-1)):
-					bpm[pos] = bpm[pos-1]+1;
+					bpm.append(bpm[pos-1]-1)
+				elif(calc_bpm > bpm[pos-1]):
+					bpm.append(bpm[pos-1]+1)
 				else:
-					bpm[pos] = bpm[pos-1]
-					bpm_str = str(bpm[pos])
-			else:
-				bpm[pos]= calc_bpm;
+					bpm.append(bpm[pos-1])
 				bpm_str = str(bpm[pos])
+			else:
+				bpm.append(int(calc_bpm))
+				bpm_str = str(bpm[pos])
+			if(pos > 0 and (bpm[pos] != bpm[pos-1])):
+				print 'buffer pulses: ' + str(buffer_pulses) + ', diff: ' + str(diff)
 		elif(pos > 0):
-			bpm[pos] = bpm[pos-1]
+			bpm.append(bpm[pos-1])
 		else:
-			bpm[pos] = 0
+			bpm.append(0)
 
 		bpm_str = 'HRM Output: BPM = ' + bpm_str
-		print bpm_str
+		if(pos > 0 and bpm[pos] != bpm[pos-1]):
+			print bpm_str
+
 		self.bpm = bpm
 		self.bpm_str = bpm_str
 		self.buffer_pulses = buffer_pulses
