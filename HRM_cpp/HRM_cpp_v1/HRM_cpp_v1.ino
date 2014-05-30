@@ -1,4 +1,16 @@
+#include "HRM.h"
+HRM hrm;
+
+
+long start_time;
+unsigned long current_time;
+unsigned int now;
+byte heart_rate;
+
+byte pulse;
+boolean toggle;
 boolean sample;
+boolean print_bpm;
 
 void setup() {
   //set timer1 interrupt at 1Hz
@@ -16,21 +28,46 @@ void setup() {
   TIMSK1 |= (1 << OCIE1A);
   
   sample = false;
+  toggle = false;
+  print_bpm = false;
+  pinMode(13, OUTPUT);
   
   Serial.begin(9600);
-  Serial.println("ready");
+  
+  start_time = millis();
 }
+  
 
 void loop() {
+//Serial.println("class initialized");
   if(sample) {// && counter < 200) {
     int data = map(analogRead(A0),0,1023,0,1000);
-    Serial.println(data);
+//    Serial.println(data);
     sample = false;
+    current_time = millis()-start_time;
+    now = current_time/10;
+    
+    heart_rate = hrm.updateData(now, data);
+    if(print_bpm){
+      Serial.print("Heart Rate: "); Serial.println(heart_rate);
+      print_bpm = false;
+    }
+//    Serial.println(current_time);
   }
 }
 
 ISR(TIMER1_COMPA_vect){//timer1 interrupt 1Hz toggles pin 13 (LED)
-
+  pulse++;
+  if(pulse == 50) {
+//    if (toggle){
+//      digitalWrite(13,HIGH);
+//    } else {
+//      digitalWrite(13,LOW);
+//    }
+    pulse = 0;
+//    toggle = !toggle;
+    print_bpm = true;
+  }
   sample = true;
 }
 
