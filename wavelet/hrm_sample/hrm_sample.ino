@@ -21,9 +21,9 @@ void setup() {
   TIMSK1 |= (1 << OCIE1A);
   
   data = -1;
-//  pinMode(13, OUTPUT);
-//  digitalWrite(13, HIGH);
-//  counter = 0;
+  pinMode(13, OUTPUT);
+  digitalWrite(13, HIGH);
+  counter = 0;
   Serial.begin(9600);
 }
 
@@ -40,6 +40,17 @@ void loop() {
 ISR(TIMER1_COMPA_vect){//timer1 interrupt 1Hz toggles pin 13 (LED)
 //generates pulse wave of frequency 1Hz/2 = 0.5kHz (takes two cycles for full wave- toggle high then toggle low)
   data = analogRead(A0);
+  counter++;
+  if(counter == 32) {
+    if (toggle1){
+      digitalWrite(13,HIGH);
+      toggle1 = 0;
+    } else{
+      digitalWrite(13,LOW);
+      toggle1 = 1;
+    }
+    counter = 0;
+  }
 }
 
 String int2str(int data)

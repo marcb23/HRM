@@ -1,7 +1,7 @@
 % clear all variables and open figures, create an arduino object
 clear all;
 close all;
-a=arduino('COM11');
+a=arduino();%'/dev/tty.usbmodem1411');
 
 % basic data plotting variables
 range = 1000;   % initial range of the y-axis
@@ -62,8 +62,8 @@ axis([0 scroll_width -5 5]);
 grid on;
 
 % open up osc communnications with the game
-u = udp('127.0.0.1',9000);
-fopen(u);
+% u = udp('127.0.0.1',9000);
+% fopen(u);
 
 % start a timer at 0 and record the time at which the timer starts
 tic
@@ -84,7 +84,8 @@ while (1);
 %     end
 
 % read in data from arduino and store the current time
-    data_in = a.analogRead(2);
+%     data_in = a.analogRead(0);
+    data_in = (1024/5)*readVoltage(a, 0);
     current_time = toc;
     
     % stop sampling if arduino stops sending data
@@ -118,7 +119,8 @@ while (1);
     
     % if necessary, scroll the graph window
     if(time(pos)-scroll_width > 0)
-        axis([time(pos)-scroll_width time(pos) local_min local_max]);
+        axis([time(pos)-scroll_width time(pos) 0 1000]);
+%         axis([time(pos)-scroll_width time(pos) local_min local_max]);
     else
         axis([0 scroll_width local_min local_max]);
     end
@@ -129,7 +131,7 @@ while (1);
     set(title_all, 'String', bpm_str);
     
     % send data to the game over osc
-    oscsend(u,'/HXM','iiiis',0,bpm(pos),0,0,'black');
+%     oscsend(u,'/HXM','iiiis',0,bpm(pos),0,0,'black');
     
     % plot the beats per minute over time
     subplot(3,1,2,'align');
@@ -166,7 +168,7 @@ while (1);
 end
 
 %close osc communications
-fclose(u);
+% fclose(u);
 
 % save output to file
 start_time = datestr(start_time,'HHMMSS');

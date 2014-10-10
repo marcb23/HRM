@@ -4,24 +4,20 @@
 const int RATE = 64; //Hertz
 const int LEVELS = 7;
 const int SCALE_FACTOR = 64; // raw input values can be scaled up by this factor for higher precision
-const float LOW_CUTOFF = 0.4;
-const float HIGH_CUTOFF = 8.0;
+const float LOW_CUTOFF = 0.4; // No frequencies below this
+const float HIGH_CUTOFF = 8.0; // No frequencies above this
 
-//bool sample = false;
-//bool toggle1 = false;
-//int pulse = 0;
 int data;
-//String output;
-//int counter;
+int lastRate;
+boolean first;
 
-// dwt variables
+// dwt variables, transformArray and temp used to be unsigned
 WaveletArray rawInput;
-unsigned int transformArray[WINDOWLENGTH];
-unsigned int temp[WINDOWLENGTH];
+int transformArray[WINDOWLENGTH];
+int temp[WINDOWLENGTH];
 float freqs[LEVELS];
 float freq_widths[LEVELS];
 float powers[LEVELS];
-
 
 void setup() {
   //set timer1 interrupt at 1Hz
@@ -30,7 +26,7 @@ void setup() {
   TCNT1  = 0;//initialize counter value to 0
   // set compare match register for 1hz increments
   // denominator is timer frequency
-  OCR1A = 15625/RATE-1;// = (16*10^6) / (1*1024) - 1 (must be <65536)
+  OCR1A = 15625/RATE-1;// = (16*10^6) / (RATE*1024) - 1 (must be <65536)
   // turn on CTC mode
   TCCR1B |= (1 << WGM12);
   // Set CS10 and CS12 bits for 1024 prescaler
@@ -38,58 +34,64 @@ void setup() {
   // enable timer compare interrupt
   TIMSK1 |= (1 << OCIE1A);
   
-//  data = -1;
-//  pinMode(13, OUTPUT);
-//  digitalWrite(13, HIGH);
-//  counter = 0;
   Serial.begin(9600);
+  Serial.print("fm: "); Serial.println(freeMemory());
+  first = true;
+  lastRate = 0;
+  if(PRELOAD) {
+    rawInput.loadArray(transformArray);
+  }
 }
 
 // data sampling handled by the interrupt. Every time 
 // enough samples have accumulated for one snapshot,
 // copy to the transform array and process them to find the heart rate
 void loop() {
+  if(PRELOAD && first) {
+    runTransform();
+  }
+  
+  if(first) {
+    first = false;
+  }
   
 //    Serial.println(rawInput.getValue(rawInput.getLength() -1));
-    if(rawInput.getLength() == WINDOWLENGTH) {
-//      Serial.print("fm: "); Serial.println(freeMemory());
-      noInterrupts();
-      rawInput.getArray(transformArray);
-      rawInput.newWindow();
-      interrupts();
-      runTransform();
+  if(rawInput.getLength() == WINDOWLENGTH) {
+    noInterrupts();
+    rawInput.getArray(transformArray);
+    rawInput.newWindow();
+    interrupts();
+    int rate = runTransform();
+    if(lastRate == 0 || abs(rate-lastRate) <= 5) {
+      lastRate = rate;
+    } else if(rate > lastRate) {
+      lastRate++;
+    } else {
+      lastRate--;
     }
+    Serial.println(lastRate);
+  }
 }
 
-ISR(TIMER1_COMPA_vect){//timer1 interrupt 1Hz toggles pin 13 (LED)
-//generates pulse wave of frequency 1Hz/2 = 0.5kHz (takes two cycles for full wave- toggle high then toggle low)
+// Interrupt routine, runs at a frequency of RATE
+ISR(TIMER1_COMPA_vect) {
   data = analogRead(A0);
   rawInput.appendValue(data);
-//  counter++;
-//  if(counter == 20) {
-//    if (toggle1){
-//      digitalWrite(13,HIGH);
-//      toggle1 = 0;
-//    } else{
-//      digitalWrite(13,LOW);
-//      toggle1 = 1;
-//    }
-//    counter = 0;
-//  }
 }
 
-void runTransform() {
-//  Serial.print("rm: "); Serial.println(rawMean());
+// handle functions to get the heart rate
+int runTransform() {
   wavedec();
   decodeArray();
-  Serial.println(getRate());
+  return getRate();
+//  Serial.println(getRate());
 } 
 
-// Perform a multilevel 1D discrete wavelet transfrom based on the haar wavelet
+// Perform a multilevel 1D discrete wavelet decomposition based on the haar wavelet
+// With some work this could be made to use a temp array of size WINDOWLENGTH / 2
 void wavedec() {
   
   int length = WINDOWLENGTH >> 1;
-//  int temp[length];
   for(int i=0; i<LEVELS; i++) {
     for(int j=0; j<length; j++) {
       int sum = transformArray[j * 2] + transformArray[j * 2 + 1];
@@ -98,7 +100,6 @@ void wavedec() {
       temp[j + length] = diff;
 //      transformArray[j] = sum;
 //      temp[j] = diff;
-      
     }
     
 //    for(intj=length; j < length << 1; j++) {
@@ -119,29 +120,32 @@ void decodeArray() {
     float lower_limit = nyquist / power(2, LEVELS-i+1);
     float upper_limit = nyquist / power(2, LEVELS-i);
     freqs[i-1] = (lower_limit + upper_limit) / 2.0;
-//    Serial.print("got frequency: "); Serial.println(freqs[i-1]);
+//    Serial.print("low: "); Serial.println(lower_limit);
+//    Serial.print("upper: "); Serial.println(upper_limit);
+//    Serial.print("freq: "); Serial.println(freqs[i-1]);
     if(i != 1) {
-//      freq_widths[i-1] = (upper_limit - lower_limit) / nyquist; // remember to scale later!
       freq_widths[i-1] = freqs[i-1] - freqs[i-2];
     }
     if(freqs[i-1] <= HIGH_CUTOFF && freqs[i-1] >= LOW_CUTOFF) {
       powers[i-1] = transformMean(i);
     } else {
-      powers[i-0] = 0;
+      powers[i-1] = 0;
     }
+//    Serial.print("power: "); Serial.println(powers[i-1]);
   }
 }
 
 // Take the centroid of the frequency vs. power plot (as if it's a solid shape)
-float getRate() {
+int getRate() {
   float rate = 0;
   float numerator = 0;
   float denominator = 0;
   
   for(int i=1; i<LEVELS; i++) {
     numerator += (power(freqs[i]-freqs[i-1], 2) / 6.0) * (2.0 * powers[i] + powers[i-1]) * freq_widths[i];
+    Serial.print(""); // Really really shouldn't need this but Arduino throws a weird error
     denominator += ((freqs[i]-freqs[i-1])/2.0)*(powers[i] + powers[i-1]) * freq_widths[i];
-//    Serial.print("N: "); Serial.println(numerator);
+//    Serial.print("N: "); Serial.println(freq_widths[i]);
 //    Serial.print("D: "); Serial.println(denominator);
   }
   
@@ -150,26 +154,28 @@ float getRate() {
 }
   
 // some mathy functions
-int power(int base, int exponent) {
-  int result = 1;
+// raise the base to the exponent power and return the result
+float power(float base, int exponent) {
+  float result = 1;
   for(int i=0; i<exponent; i++) {
     result *= base;
   }
   return result;
 }  
 
+// find the average value of a section of the wave decomposition
 float transformMean(int sectionIndex) {
-  int first = WINDOWLENGTH / power(2, LEVELS-sectionIndex+1);
-  int length = first;
+  int first = WINDOWLENGTH / power(2, LEVELS-sectionIndex+1); // also the length
   unsigned int sum = 0;
-  for(int i=0; i<first+length; i++) {
-    sum += transformArray[i];
+  for(int i=first; i<2*first; i++) {
+    sum += abs(transformArray[i]);
   }
-  float mean = sum / float(length);
+  float mean = sum / float(first);
 //  Serial.print("tm: "); Serial.print(sectionIndex); Serial.print(", "); Serial.println(mean);
   return mean;
 }
 
+// calculate the raw mean of the transform array (should only be called before wavedec)
 unsigned int rawMean() {
   long sum = 0;
   for(int i=0; i<WINDOWLENGTH; i++) {

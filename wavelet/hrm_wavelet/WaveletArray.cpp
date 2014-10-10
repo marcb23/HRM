@@ -1,9 +1,15 @@
+// Implement a circular array with functionality specifically designed for the
+// wavelet transform-based heart rate monitor
+
 #include "WaveletArray.h"
 
 WaveletArray::WaveletArray() {
   index = 0;
   first = 0;
   length = 0;
+  if(PRELOAD) {
+    length = WINDOWLENGTH;
+  }
 }
 
 void WaveletArray::appendValue(int value) {
@@ -17,7 +23,7 @@ int WaveletArray::getValue(int index) {
   return circArray[(first+index)%WINDOWLENGTH];
 }
 
-void WaveletArray::getArray(unsigned int data[], int scale) {
+  void WaveletArray::getArray(int data[], int scale) {
   for(int i=0; i<WINDOWLENGTH; i++) {
     data[i] = circArray[(first+i)%WINDOWLENGTH]*scale;
   }
@@ -36,4 +42,10 @@ void WaveletArray::newWindow() {
 void WaveletArray::reset() {
   first = 0;
   index = 0;
+}
+
+void WaveletArray::loadArray(int preload[]) {
+  for(int i=0; i<WINDOWLENGTH; i++) {
+    appendValue(preload[i]);
+  }
 }

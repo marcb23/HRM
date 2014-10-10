@@ -1,7 +1,7 @@
 % clear all variables and open figures, create an arduino object
 clear all;
 close all;
-a=arduino('COM12');
+a=arduino('COM11');
 
 % basic data plotting variables
 range = 1000;   % initial range of the y-axis
@@ -9,7 +9,7 @@ default_scale = 1;  % used to scale up or down the analogRead
 scale_factor = default_scale;
 pos = 1;            % index for the data, beats, time, bpm, and deriv arrays
 scroll_width = 20;  % width of the graph window
-delay = .1;         % delay between each sample from the arduino
+delay = 1/64;         % delay between each sample from the arduino
 time = 0;           % array for storing raw data and sample times
 data = 0;
 deriv = 0;          % array to store the rate of change of heart rate
@@ -19,7 +19,7 @@ local_max = 1000;   % match the range of values from arduino
 
 % For calculating BPM, mostly used in calcBpm
 bpm = 0;            % array of heart rate calculations
-be = 0;  % this will be used in calcBpm to average out a heart rate
+buffer_pulses = 0;  % this will be used in calcBpm to average out a heart rate
 bpm_str = '';       % current bpm stored as string
 status = '';        % not used yet
 time_stamps = 0;    % array of time stamps for all registered heart beats

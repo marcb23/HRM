@@ -18,7 +18,7 @@ def mainLoop(sampleList):
 	lastWindow = -1
 	windowDiff = 5
 	# windowLength = 20
-	windowLength = 1024
+	windowLength = 256
 	windowCount = 0
 	for sample in sampleList:
 		time = sample[0]
@@ -229,7 +229,7 @@ def plotFFTSpectrum(y,Fs):
 
 def readFile():
 	sampleList = list()
-	with open('samples_wrist_02.csv','rU') as samplesFile:
+	with open('samples_finger_02.csv','rU') as samplesFile:
 		reader = csv.reader(samplesFile, dialect=csv.excel_tab)
 		for row in reader:
 			valuePair = row[0].split(",", 1)
@@ -352,5 +352,5 @@ if __name__ == '__main__':
 	sampleList = readFile()
 	# sampleList = waveGen()
 	mainLoop(sampleList)
-	# plt.plot(getTime(sampleList), getWave(sampleList))
-	# plt.show()
+	plt.plot(getTime(sampleList), getWave(sampleList))
+	plt.show()
